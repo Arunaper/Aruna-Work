@@ -381,8 +381,4 @@ Monitoring: I would use AWS CloudWatch to monitor the API, the data ingestion pr
 
 This approach leverages the strengths of AWS services to create a scalable and resilient data pipeline and API. We can automate the deployment and management of the infrastructure using tools like AWS CloudFormation and Terraform. We can also integrate with other AWS services like S3, IAM, and KMS to provide secure and efficient data storage and access.
 
-Submitting Your Answers
------------------------
-Consider using a linter, code formatter, and including tests and code comments. Anything that helps us understand your thought process is helpful!
 
-Please provide us with a link to your Git repository, hosted on GitHub/GitLab, containing your answers and code.
