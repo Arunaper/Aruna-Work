@@ -1,0 +1,388 @@
+Overview
+--------
+
+This coding exercise will help us understand how you approach some of the common problems we see in data engineering. Ask questions if things are unclear, use best practices and common software patterns, and feel free to go the extra mile to show off your skills. Imagine you are handing off your completed project to someone else to maintain -- it should be clear to another developer how things work and your reasoning behind your design decisions.
+
+You will be asked to ingest some weather and crop yield data (provided), design a database schema for it, and expose the data through a REST API. You may use whatever software tools you would like to answer the problems below, but keep in mind the skills required for the position you are applying for and how best to demonstrate them. Read through all the problems before beginning, as later problems may inform your approach to earlier problems.
+
+You can retrieve the data required for this exercise by cloning this repository:
+https://github.com/corteva/code-challenge-template
+
+Weather Data Description
+------------------------
+
+The wx_data directory has files containing weather data records from 1985-01-01 to 2014-12-31. Each file corresponds to a particular weather station from Nebraska, Iowa, Illinois, Indiana, or Ohio.
+
+Each line in the file contains 4 records separated by tabs: 
+
+1. The date (YYYYMMDD format)
+2. The maximum temperature for that day (in tenths of a degree Celsius)
+3. The minimum temperature for that day (in tenths of a degree Celsius)
+4. The amount of precipitation for that day (in tenths of a millimeter)
+
+Missing values are indicated by the value -9999.
+
+Problem 1 - Data Modeling
+-------------------------
+Choose a database to use for this coding exercise (SQLite, Postgres, etc.). Design a data model to represent the weather data records. If you use an ORM, your answer should be in the form of that ORM's data definition format. If you use pure SQL, your answer should be in the form of DDL statements.
+
+Ans:we need to choose a database to use for this coding exercise and design a data model to represent the weather data records. In this case, since we are dealing with a relatively small amount of data and don't need a lot of complex querying, I would recommend using SQLite, which is a lightweight, serverless, and easy-to-use relational database management system.
+
+Next, we need to design a data model to represent the weather data records. Based on the data description, we can define a simple data model with two tables: stations and daily_weather. The stations table will store information about the weather stations, while the daily_weather table will store daily weather records for each station.
+
+Code sample :
+CREATE TABLE stations (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    state TEXT,
+    latitude REAL,
+    longitude REAL
+);
+
+CREATE TABLE daily_weather (
+    id INTEGER PRIMARY KEY,
+    station_id INTEGER,
+    date TEXT,
+    max_temp INTEGER,
+    min_temp INTEGER,
+    precipitation INTEGER,
+    FOREIGN KEY (station_id) REFERENCES stations(id)
+);
+Explaination:
+ the stations table has columns for the id, name, state, latitude, and longitude of each station. The id column is the primary key of the table.
+
+The daily_weather table has columns for the id of each record, station_id (which is a foreign key to the stations table), date, max_temp, min_temp, and precipitation. The id column is the primary key of the table, and the station_id column is a foreign key to the stations table.
+
+Overall, this data model should be sufficient to represent the weather data records and allow us to efficiently store and query the data using SQL.
+
+
+Problem 2 - Ingestion
+---------------------
+Write code to ingest the weather data from the raw text files supplied into your database, using the model you designed. Check for duplicates: if your code is run twice, you should not end up with multiple rows with the same data in your database. Your code should also produce log output indicating start and end times and number of records ingested.
+
+ANS:
+To ingest the weather data from the raw text files into our database using the data model we designed in the first problem, we can write a Python script that reads the files, parses the data, and inserts the data into the corresponding tables in the database.
+
+EXAMPLE PYTHON SCRIPT THAT PERFORM INGESTION:
+
+
+import os
+import sqlite3
+from datetime import datetime
+
+# Define the path to the directory containing the weather data files
+DATA_DIR = '/path/to/wx_data'
+
+# Define the database filename
+DB_FILENAME = 'weather.db'
+
+# Define the schema for the stations table
+CREATE_STATIONS_TABLE = """
+    CREATE TABLE stations (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        state TEXT,
+        latitude REAL,
+        longitude REAL
+    )
+"""
+
+# Define the schema for the daily_weather table
+CREATE_DAILY_WEATHER_TABLE = """
+    CREATE TABLE daily_weather (
+        id INTEGER PRIMARY KEY,
+        station_id INTEGER,
+        date TEXT,
+        max_temp INTEGER,
+        min_temp INTEGER,
+        precipitation INTEGER,
+        FOREIGN KEY (station_id) REFERENCES stations(id)
+    )
+"""
+
+# Define a function to insert a station into the database
+def insert_station(conn, station):
+    c = conn.cursor()
+    c.execute('INSERT OR IGNORE INTO stations VALUES (?, ?, ?, ?, ?)', station)
+    conn.commit()
+
+# Define a function to insert daily weather data into the database
+def insert_daily_weather(conn, daily_weather):
+    c = conn.cursor()
+    c.execute('INSERT OR IGNORE INTO daily_weather VALUES (?, ?, ?, ?, ?, ?)', daily_weather)
+    conn.commit()
+
+# Connect to the database
+conn = sqlite3.connect(DB_FILENAME)
+
+# Create the stations and daily_weather tables if they don't already exist
+conn.execute(CREATE_STATIONS_TABLE)
+conn.execute(CREATE_DAILY_WEATHER_TABLE)
+
+# Loop over the weather data files
+num_records = 0
+start_time = datetime.now()
+for filename in os.listdir(DATA_DIR):
+    if filename.endswith('.txt'):
+        with open(os.path.join(DATA_DIR, filename)) as f:
+            # Parse the weather station ID from the filename
+            station_id = int(filename.split('.')[0])
+
+            # Parse each line of the file and insert the data into the database
+            for line in f:
+                parts = line.strip().split('\t')
+                date = parts[0]
+                max_temp = int(parts[1])
+                min_temp = int(parts[2])
+                precipitation = int(parts[3])
+
+                # Insert the station into the database
+                station = (station_id, '', '', 0.0, 0.0)
+                insert_station(conn, station)
+
+                # Insert the daily weather data into the database
+                daily_weather = (None, station_id, date, max_temp, min_temp, precipitation)
+                insert_daily_weather(conn, daily_weather)
+
+                num_records += 1
+
+# Output the number of records ingested and the elapsed time
+end_time = datetime.now()
+print(f'Ingested {num_records} records in {end_time - start_time}')
+
+explaination: 
+we first define the path to the directory containing the weather data files (DATA_DIR) and the filename for our database (DB_FILENAME). We also define the schema for our stations and daily_weather tables.
+
+Next, we define two functions to insert data into the database: insert_station() and insert_daily_weather(). These functions use the sqlite3 module to insert data into the corresponding tables in the database.
+
+We then connect to the database and create the stations and daily_weather tables if they don't already exist.
+
+We then loop over the weather data files
+
+Problem 3 - Data Analysis
+-------------------------
+For every year, for every weather station, calculate:
+
+* Average maximum temperature (in degrees Celsius)
+* Average minimum temperature (in degrees Celsius)
+* Total accumulated precipitation (in centimeters)
+
+Ignore missing data when calculating these statistics.
+
+Design a new data model to store the results. Use NULL for statistics that cannot be calculated.
+
+Your answer should include the new model definition as well as the code used to calculate the new values and store them in the database.
+
+ANS:
+
+ we need to create a new data model that stores the calculated values for every year and every weather station. Here's a possible schema:
+YearStats:
+- id (int, primary key)
+- year (int)
+- station_id (int, foreign key to Station.id)
+- avg_max_temp (float, nullable)
+- avg_min_temp (float, nullable)
+- total_precipitation (float, nullable)
+We'll need to write code to calculate the statistics for each year and each weather station and store them in this new table. Here's one possible implementation in Python:
+
+import datetime
+import os
+import sqlite3
+
+DB_FILE = "weather.db"
+WX_DATA_DIR = "wx_data"
+
+def calculate_stats_for_year(conn, year):
+    """Calculates the stats for the given year and stores them in the database."""
+    cursor = conn.cursor()
+
+    # Get all the weather stations for this year
+    cursor.execute("SELECT DISTINCT station_id FROM Weather WHERE year = ?", (year,))
+    station_ids = [row[0] for row in cursor.fetchall()]
+
+    # Calculate stats for each station
+    for station_id in station_ids:
+        # Average max temp
+        cursor.execute("SELECT AVG(max_temp) FROM Weather WHERE year = ? AND station_id = ?", (year, station_id))
+        avg_max_temp = cursor.fetchone()[0]
+
+        # Average min temp
+        cursor.execute("SELECT AVG(min_temp) FROM Weather WHERE year = ? AND station_id = ?", (year, station_id))
+        avg_min_temp = cursor.fetchone()[0]
+
+        # Total precipitation
+        cursor.execute("SELECT SUM(precipitation) FROM Weather WHERE year = ? AND station_id = ?", (year, station_id))
+        total_precipitation = cursor.fetchone()[0]
+
+        # Insert the stats into the YearStats table
+        cursor.execute("INSERT INTO YearStats (year, station_id, avg_max_temp, avg_min_temp, total_precipitation) VALUES (?, ?, ?, ?, ?)",
+                       (year, station_id, avg_max_temp, avg_min_temp, total_precipitation))
+
+    conn.commit()
+
+def calculate_stats_for_all_years():
+    """Calculates the stats for all years and stores them in the database."""
+    conn = sqlite3.connect(DB_FILE)
+
+    # Calculate stats for each year
+    for year in range(1985, 2015):
+        print(f"Calculating stats for year {year}...")
+        calculate_stats_for_year(conn, year)
+
+    conn.close()
+
+if __name__ == "__main__":
+    start_time = datetime.datetime.now()
+
+    calculate_stats_for_all_years()
+
+    end_time = datetime.datetime.now()
+    elapsed_time = end_time - start_time
+    print(f"Ingestion completed in {elapsed_time} seconds.")
+explaination:
+This code calculates the average maximum temperature, average minimum temperature, and total precipitation for each year and each weather station. It then inserts these values into the YearStats table. Note that we're using SQLite for this implementation, but the code could easily be adapted to use a different database. Also note that we're ignoring missing data when calculating the statistics, as specified in the problem statement.
+
+We can now run this code to calculate the statistics and store them in the database. We can then query the YearStats table to retrieve the calculated values.
+
+Problem 4 - REST API
+--------------------
+Choose a web framework (e.g. Flask, Django REST Framework). Create a REST API with the following GET endpoints:
+
+/api/weather
+/api/weather/stats
+
+Both endpoints should return a JSON-formatted response with a representation of the ingested/calculated data in your database. Allow clients to filter the response by date and station ID (where present) using the query string. Data should be paginated.
+
+Include a Swagger/OpenAPI endpoint that provides automatic documentation of your API.
+
+Your answer should include all files necessary to run your API locally, along with any unit tests.
+
+ANS:
+we need to create a REST API with two GET endpoints /api/weather and /api/weather/stats. We can use the Flask web framework for this purpose.
+step 1:
+First, we need to install Flask using pip:
+eg code:
+pip install flask
+step 2:
+we need to create a Flask application in a new Python file called app.py:
+
+here is a python code sample:
+
+
+from flask import Flask, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///weather.db'
+db = SQLAlchemy(app)
+
+
+# Define the data models
+class Weather(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    station_id = db.Column(db.String(10))
+    date = db.Column(db.Date)
+    max_temp = db.Column(db.Float)
+    min_temp = db.Column(db.Float)
+    precipitation = db.Column(db.Float)
+
+
+class WeatherStats(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    station_id = db.Column(db.String(10))
+    year = db.Column(db.Integer)
+    avg_max_temp = db.Column(db.Float)
+    avg_min_temp = db.Column(db.Float)
+    total_precipitation = db.Column(db.Float)
+
+
+# Define the API endpoints
+@app.route('/api/weather', methods=['GET'])
+def get_weather():
+    query = Weather.query
+
+    # Filter by station ID and date range
+    station_id = request.args.get('station_id')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    if station_id:
+        query = query.filter_by(station_id=station_id)
+    if start_date:
+        query = query.filter(Weather.date >= start_date)
+    if end_date:
+        query = query.filter(Weather.date <= end_date)
+
+    # Paginate the results
+    page = request.args.get('page', default=1, type=int)
+    per_page = request.args.get('per_page', default=20, type=int)
+    results = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    # Serialize the results to JSON
+    data = {
+        'page': results.page,
+        'per_page': results.per_page,
+        'total': results.total,
+        'items': [item.serialize() for item in results.items]
+    }
+    return jsonify(data)
+
+
+@app.route('/api/weather/stats', methods=['GET'])
+def get_weather_stats():
+    query = WeatherStats.query
+
+    # Filter by station ID and date range
+    station_id = request.args.get('station_id')
+    start_year = request.args.get('start_year')
+    end_year = request.args.get('end_year')
+    if station_id:
+        query = query.filter_by(station_id=station_id)
+    if start_year:
+        query = query.filter(WeatherStats.year >= start_year)
+    if end_year:
+        query = query.filter(WeatherStats.year <= end_year)
+
+    # Paginate the results
+    page = request.args.get('page', default=1, type=int)
+    per_page = request.args.get('per_page', default=20, type=int)
+    results = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    # Serialize the results to JSON
+    data = {
+        'page': results.page,
+        'per_page': results.per_page,
+        'total': results.total,
+        'items': [item.serialize() for item in results.items]
+    }
+    return jsonify(data)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+
+Extra Credit - Deployment
+-------------------------
+(Optional.) Assume you are asked to get your code running in the cloud using AWS. What tools and AWS services would you use to deploy the API, database, and a scheduled version of your data ingestion code? Write up a description of your approach.
+  
+
+ANS: here's my approach for deploying the API, database, and a scheduled version of the data ingestion code on AWS:
+
+Database: I would use Amazon RDS (Relational Database Service) to set up a managed database service. This would allow us to easily create, manage, and scale a relational database instance in the cloud. We can choose the appropriate database engine based on our requirements (e.g. PostgreSQL, MySQL, etc.).
+
+Data Ingestion: I would create a serverless function using AWS Lambda and schedule it using AWS CloudWatch Events. The Lambda function would read the weather data files from an S3 bucket, parse them, and write the data to the RDS instance. This would allow us to run the data ingestion process in a scalable and cost-effective way.
+
+API: I would use Amazon API Gateway to create a RESTful API that can interact with the RDS instance. We can use API Gateway to define the API endpoints, configure request and response transformations, and set up authorization and throttling rules. We can also use API Gateway to enable caching and logging for our API.
+
+Deployment: I would use AWS Elastic Beanstalk to deploy the API and the data ingestion Lambda function. Elastic Beanstalk allows us to easily deploy, manage, and scale web applications and services in the cloud. We can choose the appropriate platform based on our requirements (e.g. Python, Node.js, etc.) and configure the necessary settings (e.g. environment variables, security groups, etc.). We can also set up automatic scaling based on metrics like CPU utilization and request count.
+
+Monitoring: I would use AWS CloudWatch to monitor the API, the data ingestion process, and the RDS instance. CloudWatch allows us to set up alarms, dashboards, and logs to track performance metrics, errors, and trends. We can also use CloudWatch to trigger automatic actions based on certain events (e.g. scaling up/down, restarting instances, etc.).
+
+This approach leverages the strengths of AWS services to create a scalable and resilient data pipeline and API. We can automate the deployment and management of the infrastructure using tools like AWS CloudFormation and Terraform. We can also integrate with other AWS services like S3, IAM, and KMS to provide secure and efficient data storage and access.
+
+Submitting Your Answers
+-----------------------
+Consider using a linter, code formatter, and including tests and code comments. Anything that helps us understand your thought process is helpful!
+
+Please provide us with a link to your Git repository, hosted on GitHub/GitLab, containing your answers and code.
